@@ -76,7 +76,7 @@ async function seed() {
       VALUES ($1,
         'Mamaearth Vitamin C Serum Summer Sale',
         'Get 3% cashback on Vitamin C Serum purchase',
-        'https://cdn.adearn.in/demo/mamaearth-vitc.mp4',
+        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
         'video',
         '{"categories": ["Health & Beauty"], "brands": ["Mamaearth"]}'::jsonb,
         0.03, 10000, 200000,

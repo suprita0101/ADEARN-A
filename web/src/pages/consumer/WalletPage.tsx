@@ -1,11 +1,13 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { AppLayout } from '../../components/AppLayout';
-import { GlassCard, DataTable, StatusBadge } from '../../components/ui';
+import { GlassCard, DataTable, StatusBadge, Button } from '../../components/ui';
 import type { TableColumn } from '../../components/ui';
 import { SavingsGoalCard } from '../../components/SavingsGoalCard';
+import { WithdrawModal } from '../../components/WithdrawModal';
 import { api } from '../../lib/api';
-import { Wallet, TrendingUp } from 'lucide-react';
+import { Wallet, TrendingUp, Banknote } from 'lucide-react';
 
 interface PoolBalances {
   liquid_balance: number;
@@ -61,6 +63,8 @@ const TX_COLUMNS: TableColumn<Transaction>[] = [
 ];
 
 export function WalletPage() {
+  const [showWithdraw, setShowWithdraw] = useState(false);
+
   const { data: wallet } = useQuery<WalletData>({
     queryKey: ['wallet'],
     queryFn: async () => {
@@ -101,6 +105,19 @@ export function WalletPage() {
               Live
             </span>
           </div>
+        </div>
+        <div className="flex items-center justify-between mt-5 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.7px] text-slate-500">Liquid · withdrawable</p>
+            <p className="text-lg font-bold text-teal-300 mt-0.5">₹{(wallet?.pool_balances?.liquid_balance ?? 0).toFixed(2)}</p>
+          </div>
+          <Button
+            icon={<Banknote className="w-4 h-4" />}
+            disabled={!wallet?.withdrawal_eligible}
+            onClick={() => setShowWithdraw(true)}
+          >
+            Withdraw
+          </Button>
         </div>
       </GlassCard>
 
@@ -146,6 +163,13 @@ export function WalletPage() {
           emptyMessage="No transactions yet"
         />
       </GlassCard>
+
+      {showWithdraw && (
+        <WithdrawModal
+          liquidBalance={wallet?.pool_balances?.liquid_balance ?? 0}
+          onClose={() => setShowWithdraw(false)}
+        />
+      )}
     </AppLayout>
   );
 }

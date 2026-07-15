@@ -5,6 +5,8 @@ import { LoginPage } from './pages/consumer/LoginPage';
 import { WalletPage } from './pages/consumer/WalletPage';
 import { TransactionsPage } from './pages/consumer/TransactionsPage';
 import { InsightsPage } from './pages/consumer/InsightsPage';
+import { PoolSettingsPage } from './pages/consumer/PoolSettingsPage';
+import { AchievementsPage } from './pages/consumer/AchievementsPage';
 import { ImpactPage } from './pages/ImpactPage';
 import { AdvertiserDashboardPage } from './pages/advertiser/AdvertiserDashboardPage';
 import { CampaignCreatePage } from './pages/advertiser/CampaignCreatePage';
@@ -67,6 +69,18 @@ const insightsRoute = createRoute({
   component: InsightsPage,
 });
 
+const poolSettingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/pool-settings',
+  component: PoolSettingsPage,
+});
+
+const rewardsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/rewards',
+  component: AchievementsPage,
+});
+
 const impactRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/impact',
@@ -120,7 +134,7 @@ const auditLogRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute, loginRoute, onboardingRoute, feedRoute, walletRoute, transactionsRoute,
-  insightsRoute, impactRoute,
+  insightsRoute, poolSettingsRoute, rewardsRoute, impactRoute,
   advertiserRoute, campaignCreateRoute, campaignStatsRoute, analyticsRoute,
   adminRoute, auditLogRoute,
 ]);

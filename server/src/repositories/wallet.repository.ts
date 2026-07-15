@@ -28,6 +28,48 @@ export const walletRepository = {
     return res.rows[0] ?? null;
   },
 
+  /**
+   * Atomically debit the user's liquid pool for a (mocked) payout and record it
+   * in the audit log. The guarded UPDATE (liquid_balance >= amount) makes it
+   * race-safe: concurrent withdrawals cannot overdraw. Returns the new balance,
+   * or null if funds were insufficient.
+   */
+  async withdrawLiquid(
+    userId: string,
+    amount: number,
+    method: string,
+    destination: string,
+  ): Promise<{ new_liquid_balance: number } | null> {
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      const upd = await client.query<{ liquid_balance: string }>(
+        `UPDATE pool_balances
+         SET liquid_balance = liquid_balance - $2, updated_at = NOW()
+         WHERE user_id = $1 AND liquid_balance >= $2
+         RETURNING liquid_balance`,
+        [userId, amount],
+      );
+      if (upd.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+      const newBalance = Number(upd.rows[0].liquid_balance);
+      await client.query(
+        `INSERT INTO audit_log (actor_id, action, entity_type, entity_id, after_state)
+         VALUES ($1, 'wallet.withdraw', 'wallet', $1, $2)`,
+        [userId, JSON.stringify({ amount, method, destination, new_liquid_balance: newBalance })],
+      );
+      await client.query('COMMIT');
+      return { new_liquid_balance: newBalance };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
+
   async getTransactions(userId: string): Promise<TransactionRow[]> {
     const res = await db.query<TransactionRow>(
       `SELECT ct.id,

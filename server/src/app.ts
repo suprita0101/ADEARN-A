@@ -25,10 +25,12 @@ export function createApp(): Application {
   // Security headers
   app.use(helmet());
 
-  // CORS
+  // CORS — in development, reflect any origin so the app can be opened from
+  // other devices on the LAN (e.g. a phone at http://<host-ip>:5173).
+  // Production stays locked to the configured FRONTEND_URL.
   app.use(
     cors({
-      origin: env.FRONTEND_URL,
+      origin: env.NODE_ENV === 'production' ? env.FRONTEND_URL : true,
       credentials: true,
     }),
   );

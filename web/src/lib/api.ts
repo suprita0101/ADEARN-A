@@ -54,6 +54,21 @@ export interface CashbackTransaction {
 export const getWallet = (): Promise<WalletData> =>
   api.get('/wallet').then((r) => r.data.data);
 
+export interface WithdrawResult {
+  withdrawn: number;
+  method: string;
+  destination: string;
+  new_liquid_balance: number;
+  status: string;
+}
+
+export const withdrawFromWallet = (
+  amount: number,
+  method: 'bank' | 'upi',
+  destination: string,
+): Promise<WithdrawResult> =>
+  api.post('/wallet/withdraw', { amount, method, destination }).then((r) => r.data.data);
+
 export const getTransactions = (): Promise<CashbackTransaction[]> =>
   api.get('/wallet/transactions').then((r) => r.data.data);
 

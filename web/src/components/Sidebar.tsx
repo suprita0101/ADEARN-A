@@ -5,7 +5,7 @@ import { useAuthStore } from '../store/authStore';
 import {
   LayoutDashboard, Wallet, ArrowLeftRight, Settings,
   PlusCircle, BarChart2, Shield, Users, Megaphone,
-  FileText, Heart, ChevronLeft, ChevronRight, Zap,
+  FileText, Heart, SlidersHorizontal, Award, ChevronLeft, ChevronRight, Zap,
 } from 'lucide-react';
 
 type NavItem = {
@@ -20,8 +20,10 @@ const NAV: Record<string, NavItem[]> = {
     { label: 'Dashboard',    icon: LayoutDashboard, to: '/feed' },
     { label: 'Wallet',       icon: Wallet,          to: '/wallet' },
     { label: 'Insights',     icon: BarChart2,       to: '/insights' },
+    { label: 'Rewards',      icon: Award,           to: '/rewards' },
     { label: 'Transactions', icon: ArrowLeftRight,  to: '/transactions' },
     { label: 'Charity Impact', icon: Heart,         to: '/impact' },
+    { label: 'Cashback Split', icon: SlidersHorizontal, to: '/pool-settings' },
     { label: 'Settings',     icon: Settings,        to: '/onboarding' },
   ],
   advertiser: [
@@ -64,7 +66,7 @@ export function Sidebar() {
         borderRight: '1px solid rgba(255,255,255,0.06)',
         flexShrink: 0,
       }}
-      className="relative flex flex-col h-full overflow-hidden"
+      className="relative hidden md:flex flex-col h-full overflow-hidden"
     >
       {/* Logo row */}
       <div className="flex items-center gap-3 px-4 pt-5 pb-3 min-h-[60px]">
