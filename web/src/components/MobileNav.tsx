@@ -3,7 +3,7 @@ import { clsx } from 'clsx';
 import { useAuthStore } from '../store/authStore';
 import {
   Home, Wallet, BarChart2, Heart, User,
-  PlusCircle, LayoutDashboard, Shield, Users, Megaphone,
+  PlusCircle, LayoutDashboard, Shield, Users, Megaphone, Clapperboard,
 } from 'lucide-react';
 
 type MobileNavItem = {
@@ -32,6 +32,7 @@ const MOBILE_NAV: Record<string, MobileNavItem[]> = {
     { label: 'Fraud', icon: Shield, to: '/admin', search: { tab: 'fraud' } },
     { label: 'Users', icon: Users, to: '/admin', search: { tab: 'users' } },
     { label: 'Ads', icon: Megaphone, to: '/admin', search: { tab: 'advertisers' } },
+    { label: 'Clips', icon: Clapperboard, to: '/admin', search: { tab: 'campaigns' } },
   ],
 };
 

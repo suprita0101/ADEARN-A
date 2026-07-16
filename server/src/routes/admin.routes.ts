@@ -1,11 +1,20 @@
 import { Router } from 'express';
-import type { RequestHandler } from 'express';
+import type { Request, RequestHandler } from 'express';
+import { z } from 'zod';
 import { disbursementRepository } from '../repositories/disbursement.repository';
+import { campaignRepository } from '../repositories/campaign.repository';
 import { analyticsService } from '../services/analytics.service';
 import { authenticate } from '../middleware/authenticate';
 import { authorize } from '../middleware/authorize';
+import { validate } from '../middleware/validate';
+import { AppError } from '../lib/AppError';
 
 const router = Router();
+
+const updateCreativeSchema = z.object({
+  creative_url: z.string().url('creative_url must be a valid URL'),
+  creative_type: z.enum(['video', 'banner', 'audio']).default('video'),
+});
 
 /**
  * GET /admin/charity-ledger
@@ -174,6 +183,48 @@ router.get(
       const entity_type = typeof req.query['entity_type'] === 'string' ? req.query['entity_type'] : undefined;
       const data = await analyticsService.getAuditLog({ action, entity_type });
       res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }) as RequestHandler,
+);
+
+/**
+ * GET /admin/campaigns
+ * All campaigns with advertiser + current creative, for the creative manager.
+ */
+router.get(
+  '/campaigns',
+  (async (_req, res, next) => {
+    try {
+      const data = await campaignRepository.listAllForAdmin();
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }) as RequestHandler,
+);
+
+/**
+ * PUT /admin/campaigns/:id/creative
+ * Body: { creative_url, creative_type } — replace a campaign's ad clip.
+ */
+router.put(
+  '/campaigns/:id/creative',
+  validate(updateCreativeSchema),
+  (async (req: Request<{ id: string }>, res, next) => {
+    try {
+      const { creative_url, creative_type } = req.body as z.infer<typeof updateCreativeSchema>;
+      const updated = await campaignRepository.updateCreative(
+        req.params.id,
+        creative_url,
+        creative_type,
+      );
+      if (!updated) {
+        next(AppError.notFound('Campaign not found'));
+        return;
+      }
+      res.json({ success: true, data: { id: req.params.id, creative_url, creative_type } });
     } catch (err) {
       next(err);
     }

@@ -245,6 +245,27 @@ export interface AuditLogRow {
   created_at: string;
 }
 
+export interface AdminCampaignRow {
+  id: string;
+  name: string;
+  status: string;
+  company_name: string;
+  creative_url: string;
+  creative_type: string;
+  cashback_rate: string;
+  created_at: string;
+}
+
+export const getAdminCampaigns = (): Promise<AdminCampaignRow[]> =>
+  api.get('/admin/campaigns').then((r) => r.data.data);
+
+export const updateCampaignCreative = (
+  id: string,
+  creative_url: string,
+  creative_type: 'video' | 'banner' | 'audio' = 'video',
+): Promise<void> =>
+  api.put(`/admin/campaigns/${id}/creative`, { creative_url, creative_type }).then((r) => r.data);
+
 export const getAuditLog = (params: { action?: string; entity_type?: string }): Promise<AuditLogRow[]> => {
   const query = new URLSearchParams();
   if (params.action) query.set('action', params.action);

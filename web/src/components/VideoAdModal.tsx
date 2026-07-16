@@ -21,6 +21,7 @@ export function VideoAdModal({ ad, onShopNow, onClose }: VideoAdModalProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [muted, setMuted] = useState(true);
   const [watched, setWatched] = useState(false);
+  const [videoError, setVideoError] = useState(false);
 
   const toggleMute = () => {
     const v = videoRef.current;
@@ -35,22 +36,34 @@ export function VideoAdModal({ ad, onShopNow, onClose }: VideoAdModalProps) {
         className="w-full max-w-[400px] rounded-[16px] overflow-hidden relative"
         style={{ background: '#0a101a', border: '1px solid rgba(255,255,255,0.08)' }}
       >
-        {/* Video */}
-        <div className="relative bg-black aspect-[9/12] sm:aspect-video">
-          <video
-            ref={videoRef}
-            src={ad.creative_url}
-            className="w-full h-full object-cover"
-            autoPlay
-            muted
-            playsInline
-            controls={false}
-            onEnded={() => setWatched(true)}
-            onTimeUpdate={(e) => {
-              const v = e.currentTarget;
-              if (v.duration && v.currentTime / v.duration > 0.6) setWatched(true);
-            }}
-          />
+        {/* Video — explicit height (arbitrary aspect classes proved unreliable) */}
+        <div className="relative bg-black" style={{ height: 'min(58vh, 420px)' }}>
+          {videoError ? (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-2 px-6 text-center">
+              <span className="text-4xl">🎬</span>
+              <p className="text-sm text-slate-300 font-medium">Ad video unavailable</p>
+              <p className="text-xs text-slate-500">
+                The creative could not be loaded — you can still shop below.
+              </p>
+            </div>
+          ) : (
+            <video
+              ref={videoRef}
+              src={ad.creative_url}
+              className="w-full h-full object-contain"
+              autoPlay
+              muted
+              loop
+              playsInline
+              controls={false}
+              onError={() => setVideoError(true)}
+              onEnded={() => setWatched(true)}
+              onTimeUpdate={(e) => {
+                const v = e.currentTarget;
+                if (v.duration && v.currentTime / v.duration > 0.6) setWatched(true);
+              }}
+            />
+          )}
 
           {/* top controls */}
           <div className="absolute top-3 left-3 right-3 flex items-center justify-between">

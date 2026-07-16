@@ -16,6 +16,17 @@ export interface RecentConversionRow {
   status: string;
 }
 
+export interface AdminCampaignRow {
+  id: string;
+  name: string;
+  status: string;
+  company_name: string;
+  creative_url: string;
+  creative_type: string;
+  cashback_rate: string;
+  created_at: string;
+}
+
 export const campaignRepository = {
   async findAdvertiserByUserId(userId: string): Promise<{ id: string; status: string } | null> {
     const res = await db.query<{ id: string; status: string }>(
@@ -91,6 +102,34 @@ export const campaignRepository = {
       [campaignId],
     );
     return res.rows[0] ?? null;
+  },
+
+  /** All campaigns with their advertiser, for the admin creative manager. */
+  async listAllForAdmin(): Promise<AdminCampaignRow[]> {
+    const res = await db.query<AdminCampaignRow>(
+      `SELECT c.id, c.name, c.status, a.company_name,
+              c.creative_url, c.creative_type, c.cashback_rate, c.created_at
+       FROM campaigns c
+       JOIN advertisers a ON a.id = c.advertiser_id
+       ORDER BY c.created_at DESC
+       LIMIT 100`,
+    );
+    return res.rows;
+  },
+
+  /** Admin: replace a campaign's ad creative. Returns false when the campaign doesn't exist. */
+  async updateCreative(
+    campaignId: string,
+    creativeUrl: string,
+    creativeType: string,
+  ): Promise<boolean> {
+    const res = await db.query(
+      `UPDATE campaigns
+       SET creative_url = $2, creative_type = $3, updated_at = NOW()
+       WHERE id = $1`,
+      [campaignId, creativeUrl, creativeType],
+    );
+    return (res.rowCount ?? 0) > 0;
   },
 
   async getRecentConversions(

@@ -4,7 +4,7 @@ import { clsx } from 'clsx';
 import { useAuthStore } from '../store/authStore';
 import {
   LayoutDashboard, Wallet, ArrowLeftRight, Settings,
-  PlusCircle, BarChart2, Shield, Users, Megaphone,
+  PlusCircle, BarChart2, Shield, Users, Megaphone, Clapperboard,
   FileText, Heart, SlidersHorizontal, Award, ChevronLeft, ChevronRight, Zap,
 } from 'lucide-react';
 
@@ -36,6 +36,7 @@ const NAV: Record<string, NavItem[]> = {
     { label: 'Fraud Queue',  icon: Shield,          to: '/admin', search: { tab: 'fraud' } },
     { label: 'Users',        icon: Users,           to: '/admin', search: { tab: 'users' } },
     { label: 'Advertisers',  icon: Megaphone,       to: '/admin', search: { tab: 'advertisers' } },
+    { label: 'Ad Clips',     icon: Clapperboard,    to: '/admin', search: { tab: 'campaigns' } },
     { label: 'Audit Log',    icon: FileText,        to: '/admin/audit-log' },
   ],
 };

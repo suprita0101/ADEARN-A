@@ -111,7 +111,7 @@ const analyticsRoute = createRoute({
   component: AnalyticsDashboardPage,
 });
 
-const ADMIN_TABS = ['financials', 'fraud', 'users', 'advertisers'] as const;
+const ADMIN_TABS = ['financials', 'fraud', 'users', 'advertisers', 'campaigns'] as const;
 type AdminTab = (typeof ADMIN_TABS)[number];
 
 const adminRoute = createRoute({

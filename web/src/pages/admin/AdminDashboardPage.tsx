@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { DollarSign, Shield, Users, Megaphone, TrendingUp, Activity } from 'lucide-react';
+import { DollarSign, Shield, Users, Megaphone, TrendingUp, Activity, Clapperboard, X } from 'lucide-react';
 import {
   getFraudQueue,
   resolveFraudCase,
@@ -9,10 +10,13 @@ import {
   getPendingAdvertisers,
   approveAdvertiser,
   getAdminFinancials,
+  getAdminCampaigns,
+  updateCampaignCreative,
   type FraudQueueRow,
   type AdminUserRow,
   type PendingAdvertiserRow,
   type AdminFinancials,
+  type AdminCampaignRow,
 } from '../../lib/api';
 import { AppLayout } from '../../components/AppLayout';
 import {
@@ -25,10 +29,11 @@ import {
 // ─── tab config ───────────────────────────────────────────────────────────────
 
 const TABS = [
-  { key: 'financials',  label: 'Financials',  icon: DollarSign },
-  { key: 'fraud',       label: 'Fraud Queue', icon: Shield     },
-  { key: 'users',       label: 'Users',       icon: Users      },
-  { key: 'advertisers', label: 'Advertisers', icon: Megaphone  },
+  { key: 'financials',  label: 'Financials',  icon: DollarSign   },
+  { key: 'fraud',       label: 'Fraud Queue', icon: Shield       },
+  { key: 'users',       label: 'Users',       icon: Users        },
+  { key: 'advertisers', label: 'Advertisers', icon: Megaphone    },
+  { key: 'campaigns',   label: 'Ad Clips',    icon: Clapperboard },
 ] as const;
 type Tab = typeof TABS[number]['key'];
 
@@ -453,6 +458,184 @@ function AdvertisersTab() {
   );
 }
 
+// ─── Tab: Ad Clips (campaign creative manager) ───────────────────────────────
+
+function EditCreativeModal({
+  campaign,
+  onClose,
+}: {
+  campaign: AdminCampaignRow;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [url, setUrl] = useState(campaign.creative_url);
+  const [previewError, setPreviewError] = useState(false);
+  const isValidUrl = /^https?:\/\/.+/.test(url.trim());
+
+  const mutation = useMutation({
+    mutationFn: () => updateCampaignCreative(campaign.id, url.trim(), 'video'),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin-campaigns'] });
+      void queryClient.invalidateQueries({ queryKey: ['feed'] });
+      onClose();
+    },
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div
+        className="w-full max-w-[480px] rounded-[14px] p-6 relative"
+        style={{ background: 'rgba(15,23,42,0.97)', border: '1px solid rgba(255,255,255,0.1)' }}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-slate-500 hover:text-slate-200 transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <h2 className="text-base font-semibold text-slate-100 mb-1">Edit ad clip</h2>
+        <p className="text-sm text-slate-400 mb-4 truncate">{campaign.name}</p>
+
+        <label className="block text-[11px] font-semibold uppercase tracking-[0.7px] text-slate-400 mb-1.5">
+          Video URL (mp4)
+        </label>
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => {
+            setUrl(e.target.value);
+            setPreviewError(false);
+          }}
+          placeholder="https://…/product-ad.mp4"
+          className="w-full px-3 py-2.5 rounded-lg bg-white/[0.06] border border-white/[0.1] text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-teal-300/40 mb-4"
+        />
+
+        {/* Live preview — verify the clip actually plays before saving */}
+        <p className="text-[11px] font-semibold uppercase tracking-[0.7px] text-slate-400 mb-1.5">
+          Preview
+        </p>
+        <div
+          className="rounded-lg overflow-hidden bg-black mb-4 flex items-center justify-center"
+          style={{ height: 200 }}
+        >
+          {isValidUrl && !previewError ? (
+            <video
+              key={url}
+              src={url.trim()}
+              className="w-full h-full object-contain"
+              controls
+              muted
+              playsInline
+              onError={() => setPreviewError(true)}
+            />
+          ) : (
+            <p className="text-xs text-slate-500 px-4 text-center">
+              {previewError
+                ? '⚠️ This URL did not load as a video — check the link.'
+                : 'Enter a video URL to preview it here.'}
+            </p>
+          )}
+        </div>
+
+        <Button
+          onClick={() => mutation.mutate()}
+          loading={mutation.isPending}
+          disabled={!isValidUrl || previewError}
+          className="w-full"
+        >
+          Save clip
+        </Button>
+        {mutation.isError && (
+          <p className="text-xs text-red-400 mt-2 text-center">Could not save — try again.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CampaignsTab() {
+  const [editing, setEditing] = useState<AdminCampaignRow | null>(null);
+
+  const { data, isLoading, isError } = useQuery<AdminCampaignRow[]>({
+    queryKey: ['admin-campaigns'],
+    queryFn: getAdminCampaigns,
+    staleTime: 30_000,
+  });
+
+  if (isLoading) {
+    return (
+      <GlassCard className="p-4 space-y-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-10" />
+        ))}
+      </GlassCard>
+    );
+  }
+  if (isError) {
+    return (
+      <GlassCard className="p-8 text-center">
+        <p className="text-red-400">Unable to load campaigns. Please try again later.</p>
+      </GlassCard>
+    );
+  }
+
+  return (
+    <>
+      <GlassCard className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr>
+                <th className={thClass}>Campaign</th>
+                <th className={thClass}>Advertiser</th>
+                <th className={thClass}>Status</th>
+                <th className={thClass}>Clip</th>
+                <th className={`${thClass} text-right`}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {!data || data.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-16 text-center text-slate-400">
+                    No campaigns yet.
+                  </td>
+                </tr>
+              ) : (
+                data.map((row) => (
+                  <tr key={row.id} className={trClass}>
+                    <td className={`${tdClass} font-medium text-slate-100`}>{row.name}</td>
+                    <td className={tdClass}>{row.company_name}</td>
+                    <td className={`${tdClass} capitalize`}>{row.status.replace('_', ' ')}</td>
+                    <td className={tdClass}>
+                      <a
+                        href={row.creative_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-teal-300 hover:text-teal-200 text-xs inline-flex items-center gap-1"
+                      >
+                        <Clapperboard className="w-3.5 h-3.5" />
+                        {row.creative_type}
+                      </a>
+                    </td>
+                    <td className={`${tdClass} text-right`}>
+                      <Button size="sm" variant="ghost" onClick={() => setEditing(row)}>
+                        Edit clip
+                      </Button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </GlassCard>
+
+      {editing && <EditCreativeModal campaign={editing} onClose={() => setEditing(null)} />}
+    </>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export function AdminDashboardPage() {
@@ -486,6 +669,7 @@ export function AdminDashboardPage() {
       {activeTab === 'fraud'      && <FraudQueueTab />}
       {activeTab === 'users'      && <UsersTab />}
       {activeTab === 'advertisers' && <AdvertisersTab />}
+      {activeTab === 'campaigns'  && <CampaignsTab />}
     </AppLayout>
   );
 }
