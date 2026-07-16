@@ -10,6 +10,9 @@ export default defineConfig({
     },
   },
   server: {
+    // host: true binds to 0.0.0.0 so the dev server is reachable on the LAN
+    // (e.g. from a phone at http://<your-ip>:5173) with a plain `npm run dev`.
+    host: true,
     port: 5173,
     proxy: {
       '/api': 'http://localhost:3000',

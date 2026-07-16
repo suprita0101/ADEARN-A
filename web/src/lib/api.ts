@@ -88,6 +88,25 @@ export const submitAdReview = (
 ): Promise<{ composite_score: number; created: boolean }> =>
   api.post('/reviews', input).then((r) => r.data.data);
 
+// Scratch card rewards
+
+export interface ScratchCard {
+  transaction_id: string;
+  campaign_name: string;
+  earned_at: string;
+  scratched: boolean;
+  reward_amount: number | null;
+  scratched_at: string | null;
+}
+
+export const getScratchCards = (): Promise<ScratchCard[]> =>
+  api.get('/rewards/scratch-cards').then((r) => r.data.data);
+
+export const scratchCard = (
+  transactionId: string,
+): Promise<{ reward_amount: number; credited_to: string | null }> =>
+  api.post(`/rewards/scratch-cards/${transactionId}/scratch`).then((r) => r.data.data);
+
 // Charity impact (public — no auth)
 
 export interface CharityImpact {

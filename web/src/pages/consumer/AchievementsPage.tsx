@@ -1,10 +1,12 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AppLayout } from '../../components/AppLayout';
 import { GlassCard } from '../../components/ui';
+import { ScratchCardModal } from '../../components/ScratchCardModal';
 import { useAuthStore } from '../../store/authStore';
-import { api } from '../../lib/api';
-import { Flame, Award, Lock } from 'lucide-react';
+import { api, getScratchCards } from '../../lib/api';
+import type { ScratchCard } from '../../lib/api';
+import { Flame, Award, Lock, Sparkles } from 'lucide-react';
 
 interface Wallet {
   pool_balances: { total_earned: number; savings_balance: number };
@@ -47,12 +49,20 @@ function computeStreak(dates: string[]): number {
 
 export function AchievementsPage() {
   const user = useAuthStore((s) => s.user);
+  const [scratching, setScratching] = useState<ScratchCard | null>(null);
 
   const { data: wallet } = useQuery<Wallet>({
     queryKey: ['wallet'],
     queryFn: async () => (await api.get('/wallet')).data.data,
     refetchInterval: 10_000,
   });
+
+  const { data: cards = [] } = useQuery<ScratchCard[]>({
+    queryKey: ['scratch-cards'],
+    queryFn: getScratchCards,
+    refetchInterval: 10_000,
+  });
+  const unscratched = cards.filter((c) => !c.scratched).length;
   const { data: txns = [] } = useQuery<Txn[]>({
     queryKey: ['transactions'],
     queryFn: async () => (await api.get('/wallet/transactions')).data.data ?? [],
@@ -100,6 +110,56 @@ export function AchievementsPage() {
         </div>
       </GlassCard>
 
+      {/* Scratch cards */}
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold text-slate-200">Scratch Cards</h2>
+        <span className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+          <Sparkles className="w-3.5 h-3.5 text-teal-300" />
+          {unscratched > 0 ? `${unscratched} to scratch!` : 'shop to earn more'}
+        </span>
+      </div>
+      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-8">
+        {cards.length === 0 ? (
+          <div className="col-span-full">
+            <GlassCard className="p-6 text-center">
+              <p className="text-sm text-slate-400">
+                Every purchase earns a scratch card with a surprise bonus. Shop from an ad to get
+                your first one! 🪙
+              </p>
+            </GlassCard>
+          </div>
+        ) : (
+          cards.map((c) =>
+            c.scratched ? (
+              <div
+                key={c.transaction_id}
+                className="aspect-square rounded-2xl flex flex-col items-center justify-center gap-1 p-2"
+                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+              >
+                <span className="text-xl">{(c.reward_amount ?? 0) > 0 ? '🎉' : '😅'}</span>
+                <p className={`text-sm font-bold ${(c.reward_amount ?? 0) > 0 ? 'text-teal-300' : 'text-slate-500'}`}>
+                  {(c.reward_amount ?? 0) > 0 ? `₹${c.reward_amount}` : '—'}
+                </p>
+              </div>
+            ) : (
+              <button
+                key={c.transaction_id}
+                onClick={() => setScratching(c)}
+                className="aspect-square rounded-2xl flex flex-col items-center justify-center gap-1 p-2 transition-transform hover:scale-105"
+                style={{
+                  background: 'linear-gradient(135deg, #2dd4bf, #0d9488 60%, #115e59)',
+                  border: '1px solid rgba(94,234,212,0.5)',
+                  boxShadow: '0 4px 18px rgba(45,212,191,0.25)',
+                }}
+              >
+                <span className="text-2xl">🪙</span>
+                <p className="text-[11px] font-bold text-slate-900">Scratch me!</p>
+              </button>
+            ),
+          )
+        )}
+      </div>
+
       {/* Badge progress */}
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold text-slate-200">Badges</h2>
@@ -128,6 +188,14 @@ export function AchievementsPage() {
           </div>
         ))}
       </div>
+
+      {scratching && (
+        <ScratchCardModal
+          transactionId={scratching.transaction_id}
+          campaignName={scratching.campaign_name}
+          onClose={() => setScratching(null)}
+        />
+      )}
     </AppLayout>
   );
 }
