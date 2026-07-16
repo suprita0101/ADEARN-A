@@ -1,10 +1,20 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { AxiosError } from 'axios';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../lib/api';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Zap, Heart } from 'lucide-react';
+
+// Surface the backend's actual reason (e.g. "Account suspended", "Invalid or
+// expired OTP") instead of a generic message, so failures are self-explanatory.
+function getApiError(err: unknown, fallback: string): string {
+  if (err instanceof AxiosError) {
+    return (err.response?.data as { error?: { message?: string } })?.error?.message ?? fallback;
+  }
+  return fallback;
+}
 
 const ROLE_HOME: Record<string, string> = {
   consumer: '/feed',
@@ -41,8 +51,8 @@ export function LoginPage() {
 
       setPhone(phoneNum);
       setStep('otp');
-    } catch {
-      setError('Failed to send OTP. Please try again.');
+    } catch (err) {
+      setError(getApiError(err, 'Failed to send OTP. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -81,8 +91,8 @@ export function LoginPage() {
       navigate({
         to: ROLE_HOME[user.role] ?? '/feed',
       });
-    } catch {
-      setError('Invalid OTP. Please try again.');
+    } catch (err) {
+      setError(getApiError(err, 'Invalid OTP. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -100,8 +110,8 @@ export function LoginPage() {
     try {
       await api.post('/auth/request-otp', { mobile });
       await verifyOtp(mobile, DEMO_OTP);
-    } catch {
-      setError('Demo login failed. Please try again.');
+    } catch (err) {
+      setError(getApiError(err, 'Demo login failed. Please try again.'));
       setLoading(false);
     }
   };
