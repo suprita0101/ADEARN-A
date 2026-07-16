@@ -317,7 +317,17 @@ function UsersTab() {
                           size="sm"
                           variant="danger"
                           loading={isPending}
-                          onClick={() => mutation.mutate({ id: row.id, suspended: true })}
+                          onClick={() => {
+                            // Suspension blocks the user's login entirely — confirm first
+                            // so a stray tap (esp. on mobile) can't lock an account.
+                            if (
+                              window.confirm(
+                                `Suspend ${row.name} (${row.mobile})? They will not be able to log in until reinstated.`,
+                              )
+                            ) {
+                              mutation.mutate({ id: row.id, suspended: true });
+                            }
+                          }}
                         >
                           Suspend
                         </Button>

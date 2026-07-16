@@ -94,6 +94,15 @@ router.put(
     try {
       const userId = req.params['id'] as string;
       const suspended: boolean = Boolean(req.body.suspended);
+      // Guard: an admin suspending their own account would lock everyone out
+      // of the admin panel entirely.
+      if (suspended && req.user && req.user.sub === userId) {
+        res.status(422).json({
+          success: false,
+          error: { code: 'SELF_SUSPEND', message: 'You cannot suspend your own account' },
+        });
+        return;
+      }
       await analyticsService.setUserSuspended(userId, suspended);
       res.json({ success: true, data: { id: userId, suspended } });
     } catch (err) {
