@@ -1,4 +1,5 @@
 import { PoolClient } from 'pg';
+import { db } from '../config/db';
 
 export interface InsertCashbackTransactionData {
   userId: string;
@@ -25,7 +26,7 @@ export interface UpsertPoolBalancesData {
 }
 
 export interface InsertAuditLogData {
-  actorId: string;
+  actorId: string | null;
   action: string;
   entityType: string;
   entityId: string;
@@ -239,10 +240,29 @@ export const cashbackRepository = {
    * approve path and after a reject's compensating writes have been applied).
    * Must be called inside an open transaction via the provided PoolClient.
    */
+  /**
+   * Find the cashback transaction id + status linked to a Stripe payment intent
+   * (via its attribution session). Used by refund reversal. Returns null if the
+   * payment was never converted to cashback.
+   */
+  async findTxByPaymentIntent(
+    paymentIntentId: string,
+  ): Promise<{ id: string; status: string } | null> {
+    const res = await db.query<{ id: string; status: string }>(
+      `SELECT ct.id, ct.status
+       FROM cashback_transactions ct
+       JOIN attribution_sessions s ON s.id = ct.attribution_id
+       WHERE s.payment_intent_id = $1
+       LIMIT 1`,
+      [paymentIntentId],
+    );
+    return res.rows[0] ?? null;
+  },
+
   async setTransactionStatus(
     client: PoolClient,
     txId: string,
-    status: 'completed' | 'rejected',
+    status: 'completed' | 'rejected' | 'reversed',
   ): Promise<void> {
     await client.query(
       `UPDATE cashback_transactions

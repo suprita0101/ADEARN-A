@@ -37,6 +37,7 @@ const NAV: Record<string, NavItem[]> = {
     { label: 'Users',        icon: Users,           to: '/admin', search: { tab: 'users' } },
     { label: 'Advertisers',  icon: Megaphone,       to: '/admin', search: { tab: 'advertisers' } },
     { label: 'Ad Clips',     icon: Clapperboard,    to: '/admin', search: { tab: 'campaigns' } },
+    { label: 'NGOs',         icon: Heart,           to: '/admin', search: { tab: 'ngos' } },
     { label: 'Audit Log',    icon: FileText,        to: '/admin/audit-log' },
   ],
 };

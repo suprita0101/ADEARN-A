@@ -19,6 +19,9 @@ const createCampaignSchema = z.object({
   total_budget: z.coerce.number().positive(),
   starts_at: z.string().optional(),
   ends_at: z.string().optional(),
+  pledge_accepted: z.literal(true, {
+    errorMap: () => ({ message: 'You must accept the anti-surge pledge to launch a campaign' }),
+  }),
 });
 
 type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
@@ -182,6 +185,25 @@ export function CampaignCreatePage() {
                   {...form.register('ends_at')}
                 />
               </div>
+            </GlassCard>
+
+            {/* Anti-surge pledge — mandatory */}
+            <GlassCard className="p-5">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 w-4 h-4 accent-teal-400 shrink-0"
+                  {...form.register('pledge_accepted')}
+                />
+                <span className="text-sm text-slate-300 leading-snug">
+                  <span className="font-semibold text-slate-100">Anti-surge pledge.</span>{' '}
+                  I commit not to raise the price of products advertised on AdEarn for the duration
+                  of this campaign. I understand a breach results in immediate campaign suspension.
+                </span>
+              </label>
+              {errors.pledge_accepted && (
+                <p className="text-xs text-red-400 mt-2">{errors.pledge_accepted.message}</p>
+              )}
             </GlassCard>
 
             {errors.root && (

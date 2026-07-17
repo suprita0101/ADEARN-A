@@ -164,6 +164,21 @@ export function OnboardingPage() {
                   </button>
                 ))}
               </div>
+              {/* Completeness nudge — 3+ categories give the best ad matches */}
+              <div className="flex items-center gap-2 mb-4">
+                <div className="flex-1 h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-teal-300 to-teal-400 transition-all duration-300"
+                    style={{ width: `${Math.min(100, (selectedCats.length / 3) * 100)}%` }}
+                  />
+                </div>
+                <span className="text-[11px] font-medium text-slate-400 whitespace-nowrap">
+                  {selectedCats.length >= 3
+                    ? '✓ Great match potential'
+                    : `Pick ${3 - selectedCats.length} more for best matches`}
+                </span>
+              </div>
+
               {error && <p className="text-xs text-red-400 mb-3">{error}</p>}
               <Button
                 onClick={saveProfile}

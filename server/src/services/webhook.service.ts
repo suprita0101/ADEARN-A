@@ -9,6 +9,27 @@ import { notificationService } from './notification.service';
 
 export const webhookService = {
   async processStripeEvent(event: Stripe.Event): Promise<void> {
+    // A refund on a previously-converted purchase claws back the cashback.
+    if (event.type === 'charge.refunded') {
+      const charge = event.data.object as Stripe.Charge;
+      const paymentIntentId =
+        typeof charge.payment_intent === 'string'
+          ? charge.payment_intent
+          : charge.payment_intent?.id;
+      if (!paymentIntentId) {
+        logger.warn({ chargeId: charge.id }, 'webhook: refund with no payment_intent');
+        return;
+      }
+      // Idempotent at the event level; reverseForRefund is also idempotent by status.
+      if (await checkIdempotency(event.id)) {
+        logger.info({ eventId: event.id }, 'webhook: duplicate refund event, skipping');
+        return;
+      }
+      await cashbackEngine.reverseForRefund(paymentIntentId);
+      await markProcessed(event.id);
+      return;
+    }
+
     if (event.type !== 'payment_intent.succeeded') {
       logger.debug({ eventType: event.type }, 'webhook: ignoring event type');
       return;

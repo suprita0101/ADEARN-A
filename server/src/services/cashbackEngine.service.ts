@@ -300,4 +300,76 @@ export const cashbackEngine = {
       throw err;
     }
   },
+
+  /**
+   * Reverse a cashback because the underlying purchase was refunded (Stripe
+   * `charge.refunded`). Atomically claws back the pool balances and campaign
+   * spend, and marks the transaction 'reversed'. Idempotent: only a 'completed'
+   * transaction is reversed — a second refund event is a no-op.
+   */
+  async reverseForRefund(paymentIntentId: string): Promise<boolean> {
+    const txRef = await cashbackRepository.findTxByPaymentIntent(paymentIntentId);
+    if (!txRef) {
+      logger.info({ paymentIntentId }, 'refund: no cashback transaction for payment — nothing to reverse');
+      return false;
+    }
+    if (txRef.status !== 'completed') {
+      logger.info(
+        { paymentIntentId, txId: txRef.id, status: txRef.status },
+        'refund: transaction not in completed state — skipping reversal',
+      );
+      return false;
+    }
+
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      const tx = await cashbackRepository.lockTransactionForResolution(client, txRef.id);
+      if (!tx || tx.status !== 'completed') {
+        // Another refund event won the race — nothing to do.
+        await client.query('ROLLBACK');
+        client.release();
+        return false;
+      }
+
+      await cashbackRepository.decrementPoolBalances(client, {
+        userId: tx.userId,
+        cashbackAmount: tx.cashbackAmount,
+        liquidAmount: tx.liquidAmount,
+        savingsAmount: tx.savingsAmount,
+        parentAmount: tx.parentAmount,
+        charityAmount: tx.charityAmount,
+      });
+
+      await cashbackRepository.decrementCampaignSpend(client, tx.campaignId, tx.cashbackAmount);
+
+      await cashbackRepository.setTransactionStatus(client, txRef.id, 'reversed');
+
+      await cashbackRepository.insertAuditLog(client, {
+        actorId: null,
+        action: 'cashback_reversed_refund',
+        entityType: 'cashback_transaction',
+        entityId: txRef.id,
+        afterState: { cashbackAmount: tx.cashbackAmount, status: 'reversed', paymentIntentId },
+      });
+
+      await client.query('COMMIT');
+      client.release();
+
+      logger.info(
+        { paymentIntentId, txId: txRef.id, reversedAmount: tx.cashbackAmount },
+        'refund: cashback reversed',
+      );
+      return true;
+    } catch (err) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // ignore rollback errors
+      }
+      client.release();
+      throw err;
+    }
+  },
 };

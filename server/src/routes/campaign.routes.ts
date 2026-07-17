@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import type { RequestHandler } from 'express';
+import type { Request, RequestHandler } from 'express';
+import { z } from 'zod';
 import { authenticate } from '../middleware/authenticate';
 import { authorize } from '../middleware/authorize';
 import { validate } from '../middleware/validate';
@@ -7,6 +8,8 @@ import { campaignService } from '../services/campaign.service';
 import { createCampaignSchema } from '@adearn/shared';
 
 const router = Router();
+
+const statusSchema = z.object({ action: z.enum(['pause', 'resume']) });
 
 router.use(authenticate);
 router.use(authorize('advertiser'));
@@ -40,6 +43,36 @@ router.get(
       }
       const data = await campaignService.listCampaigns(req.user.sub);
       res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }) as RequestHandler,
+);
+
+// PUT /advertiser/campaigns/:id/status  — pause or resume
+router.put(
+  '/:id/status',
+  validate(statusSchema),
+  (async (req: Request<{ id: string }>, res, next) => {
+    try {
+      if (!req.user) { next(new Error('Unauthorized')); return; }
+      const { action } = req.body as z.infer<typeof statusSchema>;
+      const data = await campaignService.setCampaignStatus(req.user.sub, req.params.id, action);
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }) as RequestHandler,
+);
+
+// POST /advertiser/campaigns/:id/duplicate
+router.post(
+  '/:id/duplicate',
+  (async (req: Request<{ id: string }>, res, next) => {
+    try {
+      if (!req.user) { next(new Error('Unauthorized')); return; }
+      const data = await campaignService.duplicateCampaign(req.user.sub, req.params.id);
+      res.status(201).json({ success: true, data });
     } catch (err) {
       next(err);
     }

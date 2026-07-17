@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { DollarSign, Shield, Users, Megaphone, TrendingUp, Activity, Clapperboard, X } from 'lucide-react';
+import { DollarSign, Shield, Users, Megaphone, TrendingUp, Activity, Clapperboard, X, Heart, Plus } from 'lucide-react';
 import {
   getFraudQueue,
   resolveFraudCase,
@@ -12,11 +12,15 @@ import {
   getAdminFinancials,
   getAdminCampaigns,
   updateCampaignCreative,
+  getNgos,
+  createNgo,
+  setNgoActive,
   type FraudQueueRow,
   type AdminUserRow,
   type PendingAdvertiserRow,
   type AdminFinancials,
   type AdminCampaignRow,
+  type NgoRow,
 } from '../../lib/api';
 import { AppLayout } from '../../components/AppLayout';
 import {
@@ -34,6 +38,7 @@ const TABS = [
   { key: 'users',       label: 'Users',       icon: Users        },
   { key: 'advertisers', label: 'Advertisers', icon: Megaphone    },
   { key: 'campaigns',   label: 'Ad Clips',    icon: Clapperboard },
+  { key: 'ngos',        label: 'NGOs',        icon: Heart        },
 ] as const;
 type Tab = typeof TABS[number]['key'];
 
@@ -636,6 +641,129 @@ function CampaignsTab() {
   );
 }
 
+// ─── Tab: NGOs (charity partner manager) ─────────────────────────────────────
+
+function NgosTab() {
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState({ name: '', registration_no: '', cause: '' });
+
+  const { data, isLoading, isError } = useQuery<NgoRow[]>({
+    queryKey: ['admin-ngos'],
+    queryFn: getNgos,
+    staleTime: 30_000,
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin-ngos'] });
+  const addMutation = useMutation({
+    mutationFn: () => createNgo(form.name.trim(), form.registration_no.trim(), form.cause.trim()),
+    onSuccess: () => {
+      setForm({ name: '', registration_no: '', cause: '' });
+      void invalidate();
+    },
+  });
+  const toggleMutation = useMutation({
+    mutationFn: (args: { id: string; is_active: boolean }) => setNgoActive(args.id, args.is_active),
+    onSuccess: () => void invalidate(),
+  });
+
+  const canAdd = form.name.trim().length >= 2 && form.registration_no.trim().length >= 2 && form.cause.trim().length >= 2;
+
+  return (
+    <div className="space-y-5">
+      {/* Add NGO */}
+      <GlassCard className="p-5">
+        <h3 className="text-sm font-semibold text-slate-200 mb-3">Add partner NGO</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+          <input
+            placeholder="NGO name"
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            className="sm:col-span-2 px-3 py-2 rounded-lg bg-white/[0.06] border border-white/[0.1] text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-teal-300/40"
+          />
+          <input
+            placeholder="80G reg. no."
+            value={form.registration_no}
+            onChange={(e) => setForm((f) => ({ ...f, registration_no: e.target.value }))}
+            className="px-3 py-2 rounded-lg bg-white/[0.06] border border-white/[0.1] text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-teal-300/40"
+          />
+          <select
+            value={form.cause}
+            onChange={(e) => setForm((f) => ({ ...f, cause: e.target.value }))}
+            className="px-3 py-2 rounded-lg bg-white/[0.06] border border-white/[0.1] text-sm text-slate-200 focus:outline-none focus:border-teal-300/40"
+          >
+            <option value="" className="bg-slate-800">Select cause…</option>
+            <option value="education" className="bg-slate-800">Education</option>
+            <option value="healthcare" className="bg-slate-800">Healthcare</option>
+            <option value="environment" className="bg-slate-800">Environment</option>
+            <option value="elderly_care" className="bg-slate-800">Elderly care</option>
+          </select>
+        </div>
+        <div className="mt-3">
+          <Button size="sm" icon={<Plus className="w-4 h-4" />} loading={addMutation.isPending} disabled={!canAdd} onClick={() => addMutation.mutate()}>
+            Add NGO
+          </Button>
+        </div>
+      </GlassCard>
+
+      {/* NGO list */}
+      {isLoading ? (
+        <GlassCard className="p-4 space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10" />)}
+        </GlassCard>
+      ) : isError ? (
+        <GlassCard className="p-8 text-center"><p className="text-red-400">Unable to load NGOs.</p></GlassCard>
+      ) : (
+        <GlassCard className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr>
+                  <th className={thClass}>NGO</th>
+                  <th className={thClass}>Cause</th>
+                  <th className={thClass}>80G Reg.</th>
+                  <th className={`${thClass} text-right`}>Accumulated</th>
+                  <th className={thClass}>Status</th>
+                  <th className={`${thClass} text-right`}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!data || data.length === 0 ? (
+                  <tr><td colSpan={6} className="py-16 text-center text-slate-400">No NGOs yet.</td></tr>
+                ) : (
+                  data.map((n) => {
+                    const busy = toggleMutation.isPending && toggleMutation.variables?.id === n.id;
+                    return (
+                      <tr key={n.id} className={trClass}>
+                        <td className={`${tdClass} font-medium text-slate-100`}>{n.name}</td>
+                        <td className={`${tdClass} capitalize`}>{n.cause}</td>
+                        <td className={tdClass}>{n.registration_no}</td>
+                        <td className={`${tdClass} text-right`}>{formatCurrency(n.accumulated_balance)}</td>
+                        <td className={tdClass}>
+                          {n.is_active ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-400/10 text-emerald-400 border border-emerald-400/20">Active</span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-400/10 text-slate-400 border border-slate-400/20">Inactive</span>
+                          )}
+                        </td>
+                        <td className={`${tdClass} text-right`}>
+                          <Button size="sm" variant={n.is_active ? 'danger' : 'primary'} loading={busy}
+                            onClick={() => toggleMutation.mutate({ id: n.id, is_active: !n.is_active })}>
+                            {n.is_active ? 'Deactivate' : 'Activate'}
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </GlassCard>
+      )}
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export function AdminDashboardPage() {
@@ -670,6 +798,7 @@ export function AdminDashboardPage() {
       {activeTab === 'users'      && <UsersTab />}
       {activeTab === 'advertisers' && <AdvertisersTab />}
       {activeTab === 'campaigns'  && <CampaignsTab />}
+      {activeTab === 'ngos'       && <NgosTab />}
     </AppLayout>
   );
 }

@@ -160,6 +160,40 @@ export const disbursementRepository = {
     return res.rows;
   },
 
+  /** All NGOs (incl. inactive) for the admin manager. */
+  async listAllNgos(): Promise<(NgoRow & { registration_no: string; is_active: boolean })[]> {
+    const res = await db.query<NgoRow & { registration_no: string; is_active: boolean }>(
+      `SELECT id, name, registration_no, cause, accumulated_balance, is_active
+       FROM ngos
+       ORDER BY is_active DESC, name`,
+    );
+    return res.rows;
+  },
+
+  /** Admin: add a new partner NGO. */
+  async createNgo(
+    name: string,
+    registrationNo: string,
+    cause: string,
+  ): Promise<{ id: string }> {
+    const res = await db.query<{ id: string }>(
+      `INSERT INTO ngos (name, registration_no, cause, bank_account)
+       VALUES ($1, $2, $3, '{}'::jsonb)
+       RETURNING id`,
+      [name, registrationNo, cause],
+    );
+    return res.rows[0];
+  },
+
+  /** Admin: activate / deactivate an NGO. Returns false if not found. */
+  async setNgoActive(ngoId: string, isActive: boolean): Promise<boolean> {
+    const res = await db.query(
+      `UPDATE ngos SET is_active = $2 WHERE id = $1`,
+      [ngoId, isActive],
+    );
+    return (res.rowCount ?? 0) > 0;
+  },
+
   /** Total amount ever disbursed to charity across all disbursements. */
   async getTotalDisbursed(): Promise<string> {
     const res = await db.query<{ total: string }>(

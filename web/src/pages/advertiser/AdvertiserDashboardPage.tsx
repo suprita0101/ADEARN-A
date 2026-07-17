@@ -1,10 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { AppLayout } from '../../components/AppLayout';
 import { KpiCard, GlassCard, DataTable, StatusBadge, Button } from '../../components/ui';
 import type { TableColumn } from '../../components/ui';
-import { api } from '../../lib/api';
-import { Plus, BarChart2, DollarSign, Target, TrendingUp } from 'lucide-react';
+import { api, setCampaignStatus, duplicateCampaign } from '../../lib/api';
+import { Plus, BarChart2, DollarSign, Target, TrendingUp, Pause, Play, Copy } from 'lucide-react';
 
 interface Campaign extends Record<string, unknown> {
   id: string;
@@ -18,6 +18,7 @@ interface Campaign extends Record<string, unknown> {
 
 export function AdvertiserDashboardPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: campaigns = [], isLoading } = useQuery<Campaign[]>({
     queryKey: ['advertiser-campaigns'],
@@ -26,6 +27,19 @@ export function AdvertiserDashboardPage() {
       return (res.data.data ?? []) as Campaign[];
     },
     refetchInterval: 10_000,
+  });
+
+  const invalidate = () =>
+    void queryClient.invalidateQueries({ queryKey: ['advertiser-campaigns'] });
+
+  const statusMutation = useMutation({
+    mutationFn: (args: { id: string; action: 'pause' | 'resume' }) =>
+      setCampaignStatus(args.id, args.action),
+    onSuccess: invalidate,
+  });
+  const dupMutation = useMutation({
+    mutationFn: (id: string) => duplicateCampaign(id),
+    onSuccess: invalidate,
   });
 
   const activeCampaigns = campaigns.filter(c => c.status === 'active').length;
@@ -69,6 +83,37 @@ export function AdvertiserDashboardPage() {
     {
       key: 'conversion_count', label: 'Conversions',
       render: (v) => <span className="font-semibold text-slate-200">{String(v)}</span>,
+    },
+    {
+      key: 'id', label: 'Actions',
+      render: (_v, row) => {
+        const busy =
+          (statusMutation.isPending && statusMutation.variables?.id === row.id) ||
+          (dupMutation.isPending && dupMutation.variables === row.id);
+        return (
+          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            {row.status === 'active' && (
+              <Button size="sm" variant="ghost" loading={busy}
+                icon={<Pause className="w-3.5 h-3.5" />}
+                onClick={() => statusMutation.mutate({ id: row.id, action: 'pause' })}>
+                Pause
+              </Button>
+            )}
+            {row.status === 'paused' && (
+              <Button size="sm" variant="primary" loading={busy}
+                icon={<Play className="w-3.5 h-3.5" />}
+                onClick={() => statusMutation.mutate({ id: row.id, action: 'resume' })}>
+                Resume
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" loading={busy}
+              icon={<Copy className="w-3.5 h-3.5" />}
+              onClick={() => dupMutation.mutate(row.id)}>
+              Copy
+            </Button>
+          </div>
+        );
+      },
     },
   ];
 

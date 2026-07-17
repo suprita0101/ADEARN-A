@@ -96,6 +96,44 @@ export const campaignRepository = {
     return res.rows;
   },
 
+  /**
+   * Change a campaign's status, but only if it belongs to the advertiser and is
+   * currently in `fromStatus`. Returns false if no row matched (wrong owner or
+   * invalid current state). Race-safe via the guarded WHERE.
+   */
+  async setStatusOwned(
+    campaignId: string,
+    advertiserId: string,
+    fromStatus: string,
+    toStatus: string,
+  ): Promise<boolean> {
+    const res = await db.query(
+      `UPDATE campaigns
+       SET status = $4, updated_at = NOW()
+       WHERE id = $1 AND advertiser_id = $2 AND status = $3`,
+      [campaignId, advertiserId, fromStatus, toStatus],
+    );
+    return (res.rowCount ?? 0) > 0;
+  },
+
+  /** Duplicate a campaign (owned by advertiser) as a fresh pending_review draft with zero spend. */
+  async duplicateOwned(campaignId: string, advertiserId: string): Promise<Campaign | null> {
+    const res = await db.query<Campaign>(
+      `INSERT INTO campaigns
+         (advertiser_id, name, description, creative_url, creative_type,
+          target_profile, cashback_rate, daily_cap, total_budget,
+          starts_at, ends_at, status, spent_to_date)
+       SELECT advertiser_id, name || ' (copy)', description, creative_url, creative_type,
+              target_profile, cashback_rate, daily_cap, total_budget,
+              starts_at, ends_at, 'pending_review', 0
+       FROM campaigns
+       WHERE id = $1 AND advertiser_id = $2
+       RETURNING *`,
+      [campaignId, advertiserId],
+    );
+    return res.rows[0] ?? null;
+  },
+
   async findById(campaignId: string): Promise<Campaign | null> {
     const res = await db.query<Campaign>(
       'SELECT * FROM campaigns WHERE id = $1',

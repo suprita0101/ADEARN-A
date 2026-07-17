@@ -16,6 +16,13 @@ const updateCreativeSchema = z.object({
   creative_type: z.enum(['video', 'banner', 'audio']).default('video'),
 });
 
+const createNgoSchema = z.object({
+  name: z.string().min(2).max(255),
+  registration_no: z.string().min(2).max(100),
+  cause: z.enum(['education', 'environment', 'elderly_care', 'healthcare']),
+});
+const ngoActiveSchema = z.object({ is_active: z.boolean() });
+
 /**
  * GET /admin/charity-ledger
  * Public — no JWT required. Returns all charity disbursements newest-first.
@@ -225,6 +232,55 @@ router.put(
         return;
       }
       res.json({ success: true, data: { id: req.params.id, creative_url, creative_type } });
+    } catch (err) {
+      next(err);
+    }
+  }) as RequestHandler,
+);
+
+/**
+ * GET /admin/ngos — all partner NGOs with accumulated balances.
+ * POST /admin/ngos — add a new NGO.
+ * PUT /admin/ngos/:id/active — activate/deactivate.
+ */
+router.get(
+  '/ngos',
+  (async (_req, res, next) => {
+    try {
+      const data = await disbursementRepository.listAllNgos();
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }) as RequestHandler,
+);
+
+router.post(
+  '/ngos',
+  validate(createNgoSchema),
+  (async (req, res, next) => {
+    try {
+      const { name, registration_no, cause } = req.body as z.infer<typeof createNgoSchema>;
+      const data = await disbursementRepository.createNgo(name, registration_no, cause);
+      res.status(201).json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }) as RequestHandler,
+);
+
+router.put(
+  '/ngos/:id/active',
+  validate(ngoActiveSchema),
+  (async (req: Request<{ id: string }>, res, next) => {
+    try {
+      const { is_active } = req.body as z.infer<typeof ngoActiveSchema>;
+      const ok = await disbursementRepository.setNgoActive(req.params.id, is_active);
+      if (!ok) {
+        next(AppError.notFound('NGO not found'));
+        return;
+      }
+      res.json({ success: true, data: { id: req.params.id, is_active } });
     } catch (err) {
       next(err);
     }

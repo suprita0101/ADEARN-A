@@ -162,6 +162,17 @@ export interface AdvertiserAnalytics {
   avg_conversion_rate: number;
 }
 
+export const setCampaignStatus = (
+  campaignId: string,
+  action: 'pause' | 'resume',
+): Promise<{ id: string; status: string }> =>
+  api.put(`/advertiser/campaigns/${campaignId}/status`, { action }).then((r) => r.data.data);
+
+export const duplicateCampaign = (
+  campaignId: string,
+): Promise<{ campaign_id: string; status: string }> =>
+  api.post(`/advertiser/campaigns/${campaignId}/duplicate`).then((r) => r.data.data);
+
 export const getCampaignStats = (campaignId: string): Promise<CampaignStats> =>
   api.get(`/advertiser/campaigns/${campaignId}/stats`).then((r) => r.data.data);
 
@@ -265,6 +276,28 @@ export const updateCampaignCreative = (
   creative_type: 'video' | 'banner' | 'audio' = 'video',
 ): Promise<void> =>
   api.put(`/admin/campaigns/${id}/creative`, { creative_url, creative_type }).then((r) => r.data);
+
+export interface NgoRow {
+  id: string;
+  name: string;
+  registration_no: string;
+  cause: string;
+  accumulated_balance: string;
+  is_active: boolean;
+}
+
+export const getNgos = (): Promise<NgoRow[]> =>
+  api.get('/admin/ngos').then((r) => r.data.data);
+
+export const createNgo = (
+  name: string,
+  registration_no: string,
+  cause: string,
+): Promise<{ id: string }> =>
+  api.post('/admin/ngos', { name, registration_no, cause }).then((r) => r.data.data);
+
+export const setNgoActive = (id: string, is_active: boolean): Promise<void> =>
+  api.put(`/admin/ngos/${id}/active`, { is_active }).then((r) => r.data);
 
 export const getAuditLog = (params: { action?: string; entity_type?: string }): Promise<AuditLogRow[]> => {
   const query = new URLSearchParams();

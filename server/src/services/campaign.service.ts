@@ -28,6 +28,36 @@ export const campaignService = {
     return campaignRepository.findByAdvertiserId(advertiser.id);
   },
 
+  /** Pause (active→paused) or resume (paused→active) an owned campaign. */
+  async setCampaignStatus(userId: string, campaignId: string, action: 'pause' | 'resume') {
+    const advertiser = await campaignRepository.findAdvertiserByUserId(userId);
+    if (!advertiser) {
+      throw new AppError('Advertiser profile not found', 403, 'ADVERTISER_NOT_FOUND');
+    }
+    const from = action === 'pause' ? 'active' : 'paused';
+    const to = action === 'pause' ? 'paused' : 'active';
+    const ok = await campaignRepository.setStatusOwned(campaignId, advertiser.id, from, to);
+    if (!ok) {
+      throw AppError.conflict(
+        action === 'pause'
+          ? 'Only an active campaign can be paused'
+          : 'Only a paused campaign can be resumed',
+      );
+    }
+    return { id: campaignId, status: to };
+  },
+
+  /** Duplicate an owned campaign as a new pending_review draft. */
+  async duplicateCampaign(userId: string, campaignId: string) {
+    const advertiser = await campaignRepository.findAdvertiserByUserId(userId);
+    if (!advertiser) {
+      throw new AppError('Advertiser profile not found', 403, 'ADVERTISER_NOT_FOUND');
+    }
+    const copy = await campaignRepository.duplicateOwned(campaignId, advertiser.id);
+    if (!copy) throw AppError.notFound('Campaign not found');
+    return { campaign_id: copy.id, status: copy.status };
+  },
+
   async getCampaignStats(userId: string, campaignId: string) {
     const advertiser = await campaignRepository.findAdvertiserByUserId(userId);
     if (!advertiser) {
