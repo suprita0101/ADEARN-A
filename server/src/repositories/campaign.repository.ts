@@ -116,6 +116,84 @@ export const campaignRepository = {
     return (res.rowCount ?? 0) > 0;
   },
 
+  /**
+   * Update editable fields of an owned campaign. Only the provided fields are
+   * changed (COALESCE keeps the rest). Returns false if not found / not owned.
+   */
+  async updateOwned(
+    campaignId: string,
+    advertiserId: string,
+    fields: {
+      name?: string;
+      creative_url?: string;
+      creative_type?: string;
+      cashback_rate?: number;
+      daily_cap?: number;
+      total_budget?: number;
+      ends_at?: string;
+    },
+  ): Promise<boolean> {
+    const res = await db.query(
+      `UPDATE campaigns SET
+         name          = COALESCE($3, name),
+         creative_url  = COALESCE($4, creative_url),
+         creative_type = COALESCE($5, creative_type),
+         cashback_rate = COALESCE($6, cashback_rate),
+         daily_cap     = COALESCE($7, daily_cap),
+         total_budget  = COALESCE($8, total_budget),
+         ends_at       = COALESCE($9, ends_at),
+         updated_at    = NOW()
+       WHERE id = $1 AND advertiser_id = $2`,
+      [
+        campaignId,
+        advertiserId,
+        fields.name ?? null,
+        fields.creative_url ?? null,
+        fields.creative_type ?? null,
+        fields.cashback_rate ?? null,
+        fields.daily_cap ?? null,
+        fields.total_budget ?? null,
+        fields.ends_at ?? null,
+      ],
+    );
+    return (res.rowCount ?? 0) > 0;
+  },
+
+  /** Number of cashback transactions attributed to a campaign (any status). */
+  async countCashbackForCampaign(campaignId: string): Promise<number> {
+    const res = await db.query<{ n: string }>(
+      `SELECT COUNT(ct.id)::text AS n
+       FROM attribution_sessions s
+       JOIN cashback_transactions ct ON ct.attribution_id = s.id
+       WHERE s.campaign_id = $1`,
+      [campaignId],
+    );
+    return Number(res.rows[0]?.n ?? 0);
+  },
+
+  /**
+   * Hard-delete an owned campaign. Only safe when the campaign has no cashback
+   * history — attribution_sessions cascade away, but cashback_transactions
+   * RESTRICT, so the service must check first.
+   */
+  async deleteOwned(campaignId: string, advertiserId: string): Promise<boolean> {
+    const res = await db.query(`DELETE FROM campaigns WHERE id = $1 AND advertiser_id = $2`, [
+      campaignId,
+      advertiserId,
+    ]);
+    return (res.rowCount ?? 0) > 0;
+  },
+
+  /** Archive an owned campaign (any live status → completed), preserving history. */
+  async archiveOwned(campaignId: string, advertiserId: string): Promise<boolean> {
+    const res = await db.query(
+      `UPDATE campaigns SET status = 'completed', updated_at = NOW()
+       WHERE id = $1 AND advertiser_id = $2 AND status <> 'completed'`,
+      [campaignId, advertiserId],
+    );
+    return (res.rowCount ?? 0) > 0;
+  },
+
   /** Duplicate a campaign (owned by advertiser) as a fresh pending_review draft with zero spend. */
   async duplicateOwned(campaignId: string, advertiserId: string): Promise<Campaign | null> {
     const res = await db.query<Campaign>(

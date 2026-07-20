@@ -1,10 +1,17 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
+import { AxiosError } from 'axios';
 import { AppLayout } from '../../components/AppLayout';
 import { KpiCard, GlassCard, DataTable, StatusBadge, Button } from '../../components/ui';
 import type { TableColumn } from '../../components/ui';
-import { api, setCampaignStatus, duplicateCampaign } from '../../lib/api';
-import { Plus, BarChart2, DollarSign, Target, TrendingUp, Pause, Play, Copy } from 'lucide-react';
+import { EditCampaignModal } from '../../components/EditCampaignModal';
+import {
+  api, setCampaignStatus, duplicateCampaign, deleteCampaign, archiveCampaign,
+} from '../../lib/api';
+import {
+  Plus, BarChart2, DollarSign, Target, TrendingUp, Pause, Play, Copy, Pencil, Trash2, Archive,
+} from 'lucide-react';
 
 interface Campaign extends Record<string, unknown> {
   id: string;
@@ -40,6 +47,31 @@ export function AdvertiserDashboardPage() {
   const dupMutation = useMutation({
     mutationFn: (id: string) => duplicateCampaign(id),
     onSuccess: invalidate,
+  });
+
+  const [editing, setEditing] = useState<Campaign | null>(null);
+
+  const archiveMutation = useMutation({
+    mutationFn: (id: string) => archiveCampaign(id),
+    onSuccess: invalidate,
+  });
+
+  // Deleting is only allowed when a campaign has no cashback history. If the
+  // server refuses, offer archiving instead (which preserves the record).
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteCampaign(id),
+    onSuccess: invalidate,
+    onError: (err, id) => {
+      const msg =
+        err instanceof AxiosError
+          ? ((err.response?.data as { error?: { message?: string } })?.error?.message ?? '')
+          : '';
+      if (msg && window.confirm(`${msg}\n\nArchive this campaign instead?`)) {
+        archiveMutation.mutate(id);
+      } else if (!msg) {
+        window.alert('Could not delete this campaign.');
+      }
+    },
   });
 
   const activeCampaigns = campaigns.filter(c => c.status === 'active').length;
@@ -89,27 +121,50 @@ export function AdvertiserDashboardPage() {
       render: (_v, row) => {
         const busy =
           (statusMutation.isPending && statusMutation.variables?.id === row.id) ||
-          (dupMutation.isPending && dupMutation.variables === row.id);
+          (dupMutation.isPending && dupMutation.variables === row.id) ||
+          (deleteMutation.isPending && deleteMutation.variables === row.id) ||
+          (archiveMutation.isPending && archiveMutation.variables === row.id);
         return (
-          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
             {row.status === 'active' && (
-              <Button size="sm" variant="ghost" loading={busy}
+              <Button size="sm" variant="ghost" loading={busy} title="Pause campaign"
                 icon={<Pause className="w-3.5 h-3.5" />}
                 onClick={() => statusMutation.mutate({ id: row.id, action: 'pause' })}>
                 Pause
               </Button>
             )}
             {row.status === 'paused' && (
-              <Button size="sm" variant="primary" loading={busy}
+              <Button size="sm" variant="primary" loading={busy} title="Resume campaign"
                 icon={<Play className="w-3.5 h-3.5" />}
                 onClick={() => statusMutation.mutate({ id: row.id, action: 'resume' })}>
                 Resume
               </Button>
             )}
-            <Button size="sm" variant="ghost" loading={busy}
-              icon={<Copy className="w-3.5 h-3.5" />}
+            <Button size="sm" variant="ghost" title="Edit campaign"
+              onClick={() => setEditing(row)}>
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
+            <Button size="sm" variant="ghost" loading={busy} title="Duplicate campaign"
               onClick={() => dupMutation.mutate(row.id)}>
-              Copy
+              <Copy className="w-3.5 h-3.5" />
+            </Button>
+            {row.status !== 'completed' && (
+              <Button size="sm" variant="ghost" loading={busy} title="Archive campaign"
+                onClick={() => {
+                  if (window.confirm(`Archive "${row.name}"? It stops serving but all history is kept.`)) {
+                    archiveMutation.mutate(row.id);
+                  }
+                }}>
+                <Archive className="w-3.5 h-3.5" />
+              </Button>
+            )}
+            <Button size="sm" variant="danger" loading={busy} title="Delete campaign"
+              onClick={() => {
+                if (window.confirm(`Delete "${row.name}"? This cannot be undone.`)) {
+                  deleteMutation.mutate(row.id);
+                }
+              }}>
+              <Trash2 className="w-3.5 h-3.5" />
             </Button>
           </div>
         );
@@ -169,6 +224,19 @@ export function AdvertiserDashboardPage() {
           emptyMessage="No campaigns yet — create your first one"
         />
       </GlassCard>
+
+      {editing && (
+        <EditCampaignModal
+          campaign={{
+            id: editing.id,
+            name: editing.name,
+            cashback_rate: editing.cashback_rate,
+            total_budget: editing.total_budget,
+            spent_to_date: editing.spent_to_date,
+          }}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </AppLayout>
   );
 }

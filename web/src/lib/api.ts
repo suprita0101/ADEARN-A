@@ -173,6 +173,28 @@ export const duplicateCampaign = (
 ): Promise<{ campaign_id: string; status: string }> =>
   api.post(`/advertiser/campaigns/${campaignId}/duplicate`).then((r) => r.data.data);
 
+export interface CampaignEditFields {
+  name?: string;
+  creative_url?: string;
+  creative_type?: 'video' | 'banner' | 'audio';
+  cashback_rate?: number;
+  daily_cap?: number;
+  total_budget?: number;
+  ends_at?: string;
+}
+
+export const updateCampaign = (
+  campaignId: string,
+  fields: CampaignEditFields,
+): Promise<{ id: string; updated: boolean }> =>
+  api.put(`/advertiser/campaigns/${campaignId}`, fields).then((r) => r.data.data);
+
+export const deleteCampaign = (campaignId: string): Promise<{ id: string; deleted: boolean }> =>
+  api.delete(`/advertiser/campaigns/${campaignId}`).then((r) => r.data.data);
+
+export const archiveCampaign = (campaignId: string): Promise<{ id: string; status: string }> =>
+  api.put(`/advertiser/campaigns/${campaignId}/archive`).then((r) => r.data.data);
+
 export const getCampaignStats = (campaignId: string): Promise<CampaignStats> =>
   api.get(`/advertiser/campaigns/${campaignId}/stats`).then((r) => r.data.data);
 

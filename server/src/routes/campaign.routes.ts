@@ -11,6 +11,18 @@ const router = Router();
 
 const statusSchema = z.object({ action: z.enum(['pause', 'resume']) });
 
+const updateCampaignFieldsSchema = z
+  .object({
+    name: z.string().min(3).max(255).optional(),
+    creative_url: z.string().url().optional(),
+    creative_type: z.enum(['video', 'banner', 'audio']).optional(),
+    cashback_rate: z.number().min(0.01).max(0.05).optional(),
+    daily_cap: z.number().min(500).optional(),
+    total_budget: z.number().positive().optional(),
+    ends_at: z.string().optional(),
+  })
+  .refine((o) => Object.keys(o).length > 0, { message: 'No fields to update' });
+
 router.use(authenticate);
 router.use(authorize('advertiser'));
 
@@ -42,6 +54,53 @@ router.get(
         return;
       }
       const data = await campaignService.listCampaigns(req.user.sub);
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }) as RequestHandler,
+);
+
+// PUT /advertiser/campaigns/:id — edit campaign fields
+router.put(
+  '/:id',
+  validate(updateCampaignFieldsSchema),
+  (async (req: Request<{ id: string }>, res, next) => {
+    try {
+      if (!req.user) { next(new Error('Unauthorized')); return; }
+      const data = await campaignService.updateCampaign(
+        req.user.sub,
+        req.params.id,
+        req.body as z.infer<typeof updateCampaignFieldsSchema>,
+      );
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }) as RequestHandler,
+);
+
+// DELETE /advertiser/campaigns/:id — only when no cashback history
+router.delete(
+  '/:id',
+  (async (req: Request<{ id: string }>, res, next) => {
+    try {
+      if (!req.user) { next(new Error('Unauthorized')); return; }
+      const data = await campaignService.deleteCampaign(req.user.sub, req.params.id);
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }) as RequestHandler,
+);
+
+// PUT /advertiser/campaigns/:id/archive — preserve history, remove from feed
+router.put(
+  '/:id/archive',
+  (async (req: Request<{ id: string }>, res, next) => {
+    try {
+      if (!req.user) { next(new Error('Unauthorized')); return; }
+      const data = await campaignService.archiveCampaign(req.user.sub, req.params.id);
       res.json({ success: true, data });
     } catch (err) {
       next(err);

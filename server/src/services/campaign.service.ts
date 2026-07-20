@@ -47,6 +47,87 @@ export const campaignService = {
     return { id: campaignId, status: to };
   },
 
+  /**
+   * Edit an owned campaign. Budget cannot be reduced below what has already
+   * been spent, otherwise the campaign would be instantly over-budget.
+   */
+  async updateCampaign(
+    userId: string,
+    campaignId: string,
+    fields: {
+      name?: string;
+      creative_url?: string;
+      creative_type?: string;
+      cashback_rate?: number;
+      daily_cap?: number;
+      total_budget?: number;
+      ends_at?: string;
+    },
+  ) {
+    const advertiser = await campaignRepository.findAdvertiserByUserId(userId);
+    if (!advertiser) {
+      throw new AppError('Advertiser profile not found', 403, 'ADVERTISER_NOT_FOUND');
+    }
+
+    const campaign = await campaignRepository.findById(campaignId);
+    if (!campaign || campaign.advertiser_id !== advertiser.id) {
+      throw AppError.notFound('Campaign not found');
+    }
+
+    if (fields.total_budget !== undefined && fields.total_budget < Number(campaign.spent_to_date)) {
+      throw new AppError(
+        `Total budget cannot be less than the ₹${Number(campaign.spent_to_date).toFixed(2)} already spent`,
+        422,
+        'BUDGET_BELOW_SPEND',
+      );
+    }
+
+    const ok = await campaignRepository.updateOwned(campaignId, advertiser.id, fields);
+    if (!ok) throw AppError.notFound('Campaign not found');
+    return { id: campaignId, updated: true };
+  },
+
+  /**
+   * Delete an owned campaign — but only when it has no cashback history.
+   * Campaigns with conversions are financial records: deleting them would
+   * cascade away attribution history, so those must be archived instead.
+   */
+  async deleteCampaign(userId: string, campaignId: string) {
+    const advertiser = await campaignRepository.findAdvertiserByUserId(userId);
+    if (!advertiser) {
+      throw new AppError('Advertiser profile not found', 403, 'ADVERTISER_NOT_FOUND');
+    }
+
+    const campaign = await campaignRepository.findById(campaignId);
+    if (!campaign || campaign.advertiser_id !== advertiser.id) {
+      throw AppError.notFound('Campaign not found');
+    }
+
+    const conversions = await campaignRepository.countCashbackForCampaign(campaignId);
+    if (conversions > 0) {
+      throw new AppError(
+        `This campaign has ${conversions} cashback transaction(s) and cannot be deleted. Archive it instead to keep the financial record.`,
+        409,
+        'CAMPAIGN_HAS_HISTORY',
+      );
+    }
+
+    const ok = await campaignRepository.deleteOwned(campaignId, advertiser.id);
+    if (!ok) throw AppError.notFound('Campaign not found');
+    return { id: campaignId, deleted: true };
+  },
+
+  /** Archive an owned campaign — preserves all history, removes it from the feed. */
+  async archiveCampaign(userId: string, campaignId: string) {
+    const advertiser = await campaignRepository.findAdvertiserByUserId(userId);
+    if (!advertiser) {
+      throw new AppError('Advertiser profile not found', 403, 'ADVERTISER_NOT_FOUND');
+    }
+    const ok = await campaignRepository.archiveOwned(campaignId, advertiser.id);
+    if (!ok) throw AppError.conflict('Campaign not found or already archived');
+    return { id: campaignId, status: 'completed' };
+  },
+
   /** Duplicate an owned campaign as a new pending_review draft. */
   async duplicateCampaign(userId: string, campaignId: string) {
     const advertiser = await campaignRepository.findAdvertiserByUserId(userId);
