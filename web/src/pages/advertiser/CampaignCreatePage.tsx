@@ -5,8 +5,36 @@ import { z } from 'zod';
 import { AppLayout } from '../../components/AppLayout';
 import { GlassCard, Input, Select, Button } from '../../components/ui';
 import { api } from '../../lib/api';
-import { ArrowLeft, Eye, Tag, Percent } from 'lucide-react';
+import { ArrowLeft, Eye, Tag, Percent, CalendarDays, Rocket, Flag, Clock } from 'lucide-react';
 import { useWatch } from 'react-hook-form';
+
+// ─── schedule helpers ────────────────────────────────────────────────────────
+
+/** datetime-local expects `YYYY-MM-DDTHH:mm` in LOCAL time (not ISO/UTC). */
+function toLocalInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatPretty(value?: string): string | null {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+const DURATION_PRESETS = [
+  { label: '7 days', days: 7 },
+  { label: '14 days', days: 14 },
+  { label: '30 days', days: 30 },
+  { label: '90 days', days: 90 },
+] as const;
 
 const createCampaignSchema = z.object({
   name: z.string().min(3).max(255),
@@ -51,6 +79,25 @@ export function CampaignCreatePage() {
   const watchedBrands = useWatch({ control: form.control, name: 'target_brands' });
   const watchedRate = useWatch({ control: form.control, name: 'cashback_rate' });
   const watchedBudget = useWatch({ control: form.control, name: 'total_budget' });
+  const watchedStart = useWatch({ control: form.control, name: 'starts_at' });
+  const watchedEnd = useWatch({ control: form.control, name: 'ends_at' });
+
+  // Schedule summary — duration in whole days between start and end
+  const startDate = watchedStart ? new Date(watchedStart) : null;
+  const endDate = watchedEnd ? new Date(watchedEnd) : null;
+  const durationDays =
+    startDate && endDate && !Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime())
+      ? Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000)
+      : null;
+  const invalidRange = durationDays !== null && durationDays <= 0;
+
+  /** Start now, end N days later. */
+  const applyPreset = (days: number) => {
+    const now = new Date();
+    const end = new Date(now.getTime() + days * 86_400_000);
+    form.setValue('starts_at', toLocalInputValue(now), { shouldDirty: true });
+    form.setValue('ends_at', toLocalInputValue(end), { shouldDirty: true });
+  };
 
   async function onSubmit(data: CreateCampaignInput) {
     try {
@@ -171,20 +218,104 @@ export function CampaignCreatePage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="Start Date"
-                  type="datetime-local"
-                  error={errors.starts_at?.message}
-                  {...form.register('starts_at')}
-                />
-                <Input
-                  label="End Date"
-                  type="datetime-local"
-                  error={errors.ends_at?.message}
-                  {...form.register('ends_at')}
-                />
+            </GlassCard>
+
+            {/* ── Campaign schedule ── */}
+            <GlassCard className="p-6 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                  <CalendarDays className="w-4 h-4 text-teal-300" />
+                  Campaign Schedule
+                </h3>
+                {durationDays !== null && !invalidRange && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-teal-300/10 border border-teal-300/25 text-teal-300 text-[11px] font-bold whitespace-nowrap">
+                    <Clock className="w-3 h-3" />
+                    {durationDays} {durationDays === 1 ? 'day' : 'days'}
+                  </span>
+                )}
               </div>
+
+              {/* Quick duration presets */}
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.7px] text-slate-500 mb-2">
+                  Quick select
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {DURATION_PRESETS.map((p) => {
+                    const active = durationDays === p.days;
+                    return (
+                      <button
+                        key={p.days}
+                        type="button"
+                        onClick={() => applyPreset(p.days)}
+                        className={
+                          active
+                            ? 'px-3 py-1.5 rounded-lg border text-xs font-semibold bg-teal-300/[0.15] border-teal-300/40 text-teal-300 transition-all'
+                            : 'px-3 py-1.5 rounded-lg border text-xs font-medium bg-white/[0.04] border-white/[0.08] text-slate-400 hover:text-slate-100 hover:border-white/20 transition-all'
+                        }
+                      >
+                        {p.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Date pickers */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  { key: 'starts_at' as const, label: 'Starts', icon: Rocket, tint: 'text-teal-300' },
+                  { key: 'ends_at' as const, label: 'Ends', icon: Flag, tint: 'text-[#FFD2C2]' },
+                ].map(({ key, label: lbl, icon: Icon, tint }) => (
+                  <div key={key}>
+                    <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.7px] text-slate-400 mb-1.5">
+                      <Icon className={`w-3.5 h-3.5 ${tint}`} />
+                      {lbl}
+                    </label>
+                    <input
+                      type="datetime-local"
+                      // colorScheme:dark makes the native calendar/clock picker
+                      // render dark instead of a white popup on the dark UI.
+                      style={{ colorScheme: 'dark' }}
+                      className="w-full bg-white/[0.06] border border-white/[0.10] rounded-lg px-3 py-2.5 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300/40 focus:border-teal-300/40 transition-colors duration-150 cursor-pointer hover:bg-white/[0.08]"
+                      {...form.register(key)}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Timeline summary */}
+              {startDate && endDate && !invalidRange && (
+                <div
+                  className="rounded-lg p-3.5"
+                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="w-2.5 h-2.5 rounded-full bg-teal-300 shrink-0 shadow-[0_0_8px_rgba(94,234,212,0.6)]" />
+                    <div className="flex-1 h-[2px] rounded-full bg-gradient-to-r from-teal-300 via-teal-400/40 to-[#FFD2C2]" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#FFD2C2] shrink-0" />
+                  </div>
+                  <div className="flex items-start justify-between gap-3 mt-2">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500">Launch</p>
+                      <p className="text-xs text-slate-200 font-medium">{formatPretty(watchedStart)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500">Finish</p>
+                      <p className="text-xs text-slate-200 font-medium">{formatPretty(watchedEnd)}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {invalidRange && (
+                <p className="text-xs text-red-400">The end date must come after the start date.</p>
+              )}
+              {(errors.starts_at || errors.ends_at) && (
+                <p className="text-xs text-red-400">
+                  {errors.starts_at?.message ?? errors.ends_at?.message}
+                </p>
+              )}
             </GlassCard>
 
             {/* Anti-surge pledge — mandatory */}
@@ -213,6 +344,7 @@ export function CampaignCreatePage() {
             <Button
               type="submit"
               loading={form.formState.isSubmitting}
+              disabled={invalidRange}
               className="w-full"
             >
               {form.formState.isSubmitting ? 'Creating...' : 'Submit Campaign'}
